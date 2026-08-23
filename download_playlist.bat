@@ -35,7 +35,7 @@ echo Playlist: %playlist_url%
 echo Output folder: %outdir%
 echo.
 
-python youtube_playlist_to_mp3.py "%playlist_url%" -o "%outdir%"
+python youtube_playlist_to_mp3.py "%playlist_url%" -o "%outdir%" --android --auto-install-ffmpeg
 
 echo.
 pause

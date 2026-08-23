@@ -15,6 +15,7 @@ A tool to download all videos from a YouTube playlist as MP3 files.
 - 🔄 **403 Forbidden Bypass** - Android client mode support
 - 🍪 **Cookie Support** - Download private/age-restricted videos
 - ⚡ **Local ffmpeg Auto-Detection** - No separate install needed (just place ffmpeg.exe in folder)
+- 🤖 **Auto ffmpeg Install** - OS detection with auto download/install (`--auto-install-ffmpeg`)
 
 ---
 
@@ -77,6 +78,9 @@ python youtube_playlist_to_mp3.py "URL" --cookies cookies.txt --android
 
 # Disable auto playlist-title folder (use default downloads folder)
 python youtube_playlist_to_mp3.py "URL" --no-playlist-title --android
+
+# Auto-install ffmpeg (OS detection + download/install) - convenient for first run
+python youtube_playlist_to_mp3.py "URL" --android --auto-install-ffmpeg
 ```
 
 ### Batch File (Windows - Simple URL Input)
@@ -100,6 +104,7 @@ Run and enter playlist URL when prompted. (Android mode enabled by default)
 | `--no-metadata` | | `False` | Skip metadata tag writing |
 | `--android` | | `False` | **Use Android client (bypass 403) - Recommended** |
 | `--cookies` | | `None` | Browser cookies file path (Netscape format) |
+| `--auto-install-ffmpeg` | | `False` | **Auto install ffmpeg (OS detection + download/install)** |
 | `--use-playlist-title` | | `True` | Auto-create folder from playlist title |
 | `--no-playlist-title` | | `False` | Disable auto folder creation |
 
@@ -158,6 +163,7 @@ WARNING: No supported JavaScript runtime could be found...
 ### ffmpeg Not Found
 - Place `ffmpeg.exe` in project folder
 - Or add ffmpeg to system PATH
+- **Use `--auto-install-ffmpeg` option for auto-install** (Windows/Linux/macOS supported)
 
 ---
 

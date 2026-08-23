@@ -14,6 +14,11 @@ import argparse
 import os
 import sys
 import subprocess
+import platform
+import urllib.request
+import zipfile
+import tarfile
+import shutil
 from pathlib import Path
 
 
@@ -36,6 +41,158 @@ def check_ffmpeg():
         subprocess.run([ffmpeg_path, '-version'], capture_output=True, check=True)
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def get_os_info():
+    """OS 정보 반환"""
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    return system, machine
+
+
+def download_file(url, dest_path, progress_callback=None):
+    """파일 다운로드 (진행률 표시)"""
+    def _progress_hook(block_num, block_size, total_size):
+        if progress_callback and total_size > 0:
+            downloaded = block_num * block_size
+            percent = min(downloaded * 100 / total_size, 100)
+            progress_callback(percent)
+    
+    urllib.request.urlretrieve(url, dest_path, _progress_hook)
+
+
+def install_ffmpeg_windows():
+    """Windows에서 ffmpeg 다운로드 및 설치"""
+    print("Windows용 ffmpeg 다운로드 중...")
+    
+    # BtbN/ffmpeg-builds에서 zip 다운로드
+    url = "https://github.com/BtbN/ffmpeg-builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+    
+    zip_path = SCRIPT_DIR / "ffmpeg_temp.zip"
+    
+    try:
+        print(f"다운로드: {url}")
+        download_file(url, zip_path, lambda p: print(f"\r진행률: {p:.1f}%", end="", flush=True))
+        print()
+        
+        print("압축 해제 중...")
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            # ffmpeg.exe 찾기
+            for member in zip_ref.namelist():
+                if member.endswith('ffmpeg.exe'):
+                    # 루트에 추출
+                    zip_ref.extract(member, SCRIPT_DIR)
+                    extracted = SCRIPT_DIR / member
+                    # 파일명 정리 (폴더 구조 평탄화)
+                    if extracted != LOCAL_FFMPEG:
+                        shutil.move(str(extracted), str(LOCAL_FFMPEG))
+                    print(f"✅ ffmpeg.exe 설치 완료: {LOCAL_FFMPEG}")
+                    break
+        
+        # 임시 파일 정리
+        zip_path.unlink(missing_ok=True)
+        # 빈 폴더 정리
+        for item in SCRIPT_DIR.iterdir():
+            if item.is_dir() and item.name.startswith('ffmpeg-'):
+                shutil.rmtree(item, ignore_errors=True)
+        
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ ffmpeg 설치 실패: {e}")
+        zip_path.unlink(missing_ok=True)
+        return False
+
+
+def install_ffmpeg_linux():
+    """Linux에서 패키지 매니저로 ffmpeg 설치"""
+    print("Linux 패키지 매니저로 ffmpeg 설치 시도...")
+    
+    # 패키지 매니저 감지
+    package_managers = [
+        (['apt', 'install', '-y', 'ffmpeg'], 'apt (Ubuntu/Debian)'),
+        (['dnf', 'install', '-y', 'ffmpeg'], 'dnf (Fedora/RHEL)'),
+        (['yum', 'install', '-y', 'ffmpeg'], 'yum (CentOS/RHEL)'),
+        (['pacman', '-S', '--noconfirm', 'ffmpeg'], 'pacman (Arch)'),
+        (['zypper', 'install', '-y', 'ffmpeg'], 'zypper (openSUSE)'),
+    ]
+    
+    for cmd, name in package_managers:
+        try:
+            # 패키지 매니저 존재 확인
+            subprocess.run([cmd[0], '--version'], capture_output=True, check=True)
+            print(f"{name} 감지됨, 설치 중...")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                print("✅ ffmpeg 설치 완료")
+                return True
+            else:
+                print(f"{name} 설치 실패: {result.stderr}")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            continue
+    
+    print("❌ 지원되는 패키지 매니저를 찾을 수 없습니다.")
+    return False
+
+
+def install_ffmpeg_macos():
+    """macOS에서 Homebrew로 ffmpeg 설치"""
+    print("macOS Homebrew로 ffmpeg 설치 시도...")
+    
+    try:
+        subprocess.run(['brew', '--version'], capture_output=True, check=True)
+        print("Homebrew 감지됨, 설치 중...")
+        result = subprocess.run(['brew', 'install', 'ffmpeg'], capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✅ ffmpeg 설치 완료")
+            return True
+        else:
+            print(f"Homebrew 설치 실패: {result.stderr}")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("Homebrew가 설치되어 있지 않습니다.")
+    
+    return False
+
+
+def auto_install_ffmpeg(interactive=True):
+    """OS 감지 후 ffmpeg 자동 설치"""
+    if check_ffmpeg():
+        return True
+    
+    system, machine = get_os_info()
+    print(f"\n🔍 OS 감지: {system} ({machine})")
+    print("ffmpeg가 설치되어 있지 않습니다.")
+    
+    if interactive:
+        response = input("자동으로 설치하시겠습니까? (Y/n): ").strip().lower()
+        if response == 'n':
+            return False
+    else:
+        print("자동 설치 모드: ffmpeg 설치 진행...")
+    
+    success = False
+    
+    if system == 'windows':
+        success = install_ffmpeg_windows()
+    elif system == 'linux':
+        success = install_ffmpeg_linux()
+    elif system == 'darwin':
+        success = install_ffmpeg_macos()
+    else:
+        print(f"지원하지 않는 OS: {system}")
+        return False
+    
+    if success:
+        # 설치 후 재확인
+        if check_ffmpeg():
+            print("✅ ffmpeg 설치 및 확인 완료!")
+            return True
+        else:
+            print("❌ 설치되었으나 ffmpeg를 찾을 수 없습니다.")
+            return False
+    else:
+        print("❌ 자동 설치 실패. 수동으로 설치해주세요.")
         return False
 
 
@@ -190,6 +347,8 @@ def main():
                         help='Android 클라이언트 사용 (403 Forbidden 우회)')
     parser.add_argument('--cookies', type=str,
                         help='브라우저 쿠키 파일 경로 (로그인 필요 시)')
+    parser.add_argument('--auto-install-ffmpeg', action='store_true',
+                        help='ffmpeg 자동 설치 (OS 감지 후 다운로드/설치)')
     parser.add_argument('--use-playlist-title', action='store_true', default=True,
                         help='출력 폴더명을 플레이리스트 제목으로 사용 (기본값: 켜짐)')
     parser.add_argument('--no-playlist-title', action='store_false', dest='use_playlist_title',
@@ -216,17 +375,24 @@ def main():
         output_dir = f"./{playlist_title}"
         print(f"출력 폴더: {output_dir}")
     
-    # ffmpeg 확인 (다운로드 시에만 필요)
+    # ffmpeg 확인 및 자동 설치 (다운로드 시에만 필요)
     if not check_ffmpeg():
         print("⚠️  경고: ffmpeg가 설치되어 있지 않습니다.")
-        print("   MP3 변환을 위해 ffmpeg가 필요합니다.")
-        print("   Windows: winget install ffmpeg 또는 https://ffmpeg.org/download.html")
-        print("   Mac: brew install ffmpeg")
-        print("   Linux: sudo apt install ffmpeg")
-        print()
-        response = input("계속하시겠습니까? (y/N): ")
-        if response.lower() != 'y':
-            sys.exit(1)
+        if args.auto_install_ffmpeg:
+            print("자동 설치 모드: OS 감지 후 설치 시도...")
+            if not auto_install_ffmpeg(interactive=False):
+                print("❌ 자동 설치 실패. 수동으로 설치해주세요.")
+                sys.exit(1)
+        else:
+            print("   MP3 변환을 위해 ffmpeg가 필요합니다.")
+            print("   Windows: winget install ffmpeg 또는 https://ffmpeg.org/download.html")
+            print("   Mac: brew install ffmpeg")
+            print("   Linux: sudo apt install ffmpeg")
+            print("   또는 --auto-install-ffmpeg 옵션으로 자동 설치 시도")
+            print()
+            response = input("계속하시겠습니까? (y/N): ")
+            if response.lower() != 'y':
+                sys.exit(1)
     
     # 다운로드 실행
     success = download_playlist_to_mp3(args.url, output_dir, args.quality, 

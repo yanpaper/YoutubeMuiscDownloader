@@ -15,6 +15,7 @@ YouTube 플레이리스트의 모든 영상을 MP3 파일로 일괄 다운로드
 - 🔄 **403 Forbidden 우회** - Android 클라이언트 모드 지원
 - 🍪 **쿠키 지원** - 비공개/연령제한 영상 다운로드 가능
 - ⚡ **로컬 ffmpeg 자동 감지** - 별도 설치 불필요 (폴더에 ffmpeg.exe만 두면 됨)
+- 🤖 **ffmpeg 자동 설치** - OS 감지 후 자동 다운로드/설치 (`--auto-install-ffmpeg`)
 
 ---
 
@@ -77,6 +78,9 @@ python youtube_playlist_to_mp3.py "URL" --cookies cookies.txt --android
 
 # 플레이리스트 제목으로 폴더 생성 안 함 (기본 downloads 폴더 사용)
 python youtube_playlist_to_mp3.py "URL" --no-playlist-title --android
+
+# ffmpeg 자동 설치 (OS 감지 후 다운로드/설치) - 최초 실행 시 편리
+python youtube_playlist_to_mp3.py "URL" --android --auto-install-ffmpeg
 ```
 
 ### 배치 파일 실행 (Windows - URL 입력만으로 간편)
@@ -100,6 +104,7 @@ download_playlist.bat
 | `--no-metadata` | | `False` | 메타데이터 태그 추가 안 함 |
 | `--android` | | `False` | **Android 클라이언트 사용 (403 우회) - 권장** |
 | `--cookies` | | `None` | 브라우저 쿠키 파일 경로 (Netscape 형식) |
+| `--auto-install-ffmpeg` | | `False` | **ffmpeg 자동 설치 (OS 감지 후 다운로드/설치)** |
 | `--use-playlist-title` | | `True` | 플레이리스트 제목으로 폴더 자동 생성 |
 | `--no-playlist-title` | | `False` | 자동 폴더 생성 끄기 |
 
@@ -157,6 +162,7 @@ WARNING: No supported JavaScript runtime could be found...
 ### ffmpeg를 찾을 수 없음
 - 프로젝트 폴더에 `ffmpeg.exe` 배치
 - 또는 시스템 PATH에 ffmpeg 경로 추가
+- **`--auto-install-ffmpeg` 옵션으로 자동 설치** (Windows/Linux/macOS 지원)
 
 ---
 
