@@ -1,5 +1,9 @@
 # YouTube Playlist to MP3 Downloader
 
+[🇺🇸 English](README_EN.md) | **🇰🇷 한국어**
+
+---
+
 YouTube 플레이리스트의 모든 영상을 MP3 파일로 일괄 다운로드하는 도구입니다.
 
 ## ✨ 주요 기능
