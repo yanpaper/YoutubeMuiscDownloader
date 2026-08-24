@@ -8,6 +8,4 @@
 # dQw4w9WgXcQ  (Video ID만 적어도 됨)
 
 # 아래에 제외할 영상들을 추가하세요:
-T24rF_x0TmQ
-YcxhmHEykPg
-aL7iwQvEgos
+https://youtu.be/jMKPYg0uhCI?si=zcLsvBMTtCTaecbM
