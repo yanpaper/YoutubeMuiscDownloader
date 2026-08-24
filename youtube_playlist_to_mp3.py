@@ -34,6 +34,32 @@ def get_ffmpeg_path():
     return "ffmpeg"
 
 
+def load_blacklist(blacklist_path):
+    """블랙리스트 파일에서 제외할 비디오 ID/URL 로드"""
+    blacklist = set()
+    if blacklist_path and Path(blacklist_path).exists():
+        try:
+            with open(blacklist_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    # 주석과 빈 줄 무시
+                    if line and not line.startswith('#'):
+                        # URL에서 video ID 추출 또는 전체 URL/ID 그대로 사용
+                        if 'youtube.com/watch?v=' in line:
+                            video_id = line.split('v=')[1].split('&')[0]
+                            blacklist.add(video_id)
+                        elif 'youtu.be/' in line:
+                            video_id = line.split('youtu.be/')[1].split('?')[0]
+                            blacklist.add(video_id)
+                        else:
+                            # 직접 ID로 입력된 경우
+                            blacklist.add(line)
+            print(f"블랙리스트 로드: {len(blacklist)}개 항목 ({blacklist_path})")
+        except Exception as e:
+            print(f"블랙리스트 로드 실패: {e}")
+    return blacklist
+
+
 def check_ffmpeg():
     """ffmpeg가 설치되어 있는지 확인 (로컬 포함)"""
     ffmpeg_path = get_ffmpeg_path()
@@ -214,7 +240,7 @@ def get_env_with_local_ffmpeg():
     return env
 
 
-def download_playlist_to_mp3(playlist_url, output_dir, audio_quality=0, use_android_client=False, cookies=None):
+def download_playlist_to_mp3(playlist_url, output_dir, audio_quality=0, use_android_client=False, cookies=None, blacklist=None):
     """
     YouTube 플레이리스트를 MP3로 다운로드
     
@@ -224,18 +250,12 @@ def download_playlist_to_mp3(playlist_url, output_dir, audio_quality=0, use_andr
         audio_quality: 오디오 품질 (0=최고, 9=최저)
         use_android_client: Android 클라이언트 사용 (403 우회)
         cookies: 쿠키 파일 경로
+        blacklist: 제외할 비디오 ID 집합
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     
-    # yt-dlp 명령어 구성
-    # -x: 오디오만 추출
-    # --audio-format mp3: MP3 포맷으로 변환
-    # --audio-quality: 오디오 품질 설정 (0=최고, 9=최저)
-    # -o: 출력 파일명 템플릿
-    # --embed-thumbnail: 썸네일 임베드
-    # --add-metadata: 메타데이터 추가
-    # --ignore-errors: 개별 비디오 오류 무시하고 계속 진행
+    # 블랙리스트가 있으면 yt-dlp의 --match-filter로 필터링
     yt_dlp_cmd = get_yt_dlp_cmd()
     cmd = yt_dlp_cmd + [
         '-x',  # 오디오만 추출
@@ -254,6 +274,13 @@ def download_playlist_to_mp3(playlist_url, output_dir, audio_quality=0, use_andr
     if cookies:
         cmd += ['--cookies', cookies]
     
+    # 블랙리스트 필터링 (video ID 기준)
+    if blacklist:
+        # yt-dlp의 match_filter 사용: video_id가 블랙리스트에 없으면 다운로드
+        filter_expr = " and ".join([f"id != '{vid}'" for vid in blacklist])
+        cmd += ['--match-filter', filter_expr]
+        print(f"블랙리스트 필터 적용: {len(blacklist)}개 영상 제외")
+    
     cmd.append(playlist_url)
     
     # 로컬 ffmpeg 사용을 위한 환경변수
@@ -268,7 +295,6 @@ def download_playlist_to_mp3(playlist_url, output_dir, audio_quality=0, use_andr
     print("-" * 50)
     
     try:
-        # 실시간 출력 확인을 위해 subprocess.run 사용
         result = subprocess.run(cmd, check=True, env=env)
         print("-" * 50)
         print("다운로드 완료!")
@@ -349,6 +375,10 @@ def main():
                         help='브라우저 쿠키 파일 경로 (로그인 필요 시)')
     parser.add_argument('--auto-install-ffmpeg', action='store_true',
                         help='ffmpeg 자동 설치 (OS 감지 후 다운로드/설치)')
+    parser.add_argument('--blacklist', type=str, default='blacklist.txt',
+                        help='제외할 영상 목록 파일 (기본값: blacklist.txt)')
+    parser.add_argument('--no-blacklist', action='store_true',
+                        help='블랙리스트 사용 안 함')
     parser.add_argument('--use-playlist-title', action='store_true', default=True,
                         help='출력 폴더명을 플레이리스트 제목으로 사용 (기본값: 켜짐)')
     parser.add_argument('--no-playlist-title', action='store_false', dest='use_playlist_title',
@@ -394,9 +424,15 @@ def main():
             if response.lower() != 'y':
                 sys.exit(1)
     
+    # 블랙리스트 로드
+    blacklist = set()
+    if not args.no_blacklist:
+        blacklist = load_blacklist(args.blacklist)
+    
     # 다운로드 실행
     success = download_playlist_to_mp3(args.url, output_dir, args.quality, 
-                                       use_android_client=args.android, cookies=args.cookies)
+                                       use_android_client=args.android, cookies=args.cookies,
+                                       blacklist=blacklist)
     
     if success:
         print(f"\n✅ 완료! 파일들은 '{os.path.abspath(output_dir)}'에 저장되었습니다.")
