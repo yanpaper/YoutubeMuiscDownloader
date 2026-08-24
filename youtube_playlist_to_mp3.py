@@ -39,7 +39,8 @@ def load_blacklist(blacklist_path):
     blacklist = set()
     if blacklist_path and Path(blacklist_path).exists():
         try:
-            with open(blacklist_path, 'r', encoding='utf-8') as f:
+            # utf-8-sig 인코딩으로 BOM 자동 제거
+            with open(blacklist_path, 'r', encoding='utf-8-sig') as f:
                 for line in f:
                     line = line.strip()
                     # 주석과 빈 줄 무시
@@ -255,7 +256,7 @@ def download_playlist_to_mp3(playlist_url, output_dir, audio_quality=0, use_andr
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     
-    # 블랙리스트가 있으면 yt-dlp의 --match-filter로 필터링
+    # yt-dlp 명령어 구성
     yt_dlp_cmd = get_yt_dlp_cmd()
     cmd = yt_dlp_cmd + [
         '-x',  # 오디오만 추출
@@ -276,7 +277,6 @@ def download_playlist_to_mp3(playlist_url, output_dir, audio_quality=0, use_andr
     
     # 블랙리스트 필터링 (video ID 기준)
     if blacklist:
-        # yt-dlp의 match_filter 사용: video_id가 블랙리스트에 없으면 다운로드
         filter_expr = " and ".join([f"id != '{vid}'" for vid in blacklist])
         cmd += ['--match-filter', filter_expr]
         print(f"블랙리스트 필터 적용: {len(blacklist)}개 영상 제외")

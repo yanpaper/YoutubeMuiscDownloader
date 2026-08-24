@@ -16,7 +16,6 @@ A tool to download all videos from a YouTube playlist as MP3 files.
 - 🍪 **Cookie Support** - Download private/age-restricted videos
 - ⚡ **Local ffmpeg Auto-Detection** - No separate install needed (just place ffmpeg.exe in folder)
 - 🤖 **Auto ffmpeg Install** - OS detection with auto download/install (`--auto-install-ffmpeg`)
-- 🚫 **Blacklist Support** - Exclude specific videos via ID/URL list file (`blacklist.txt`)
 
 ---
 
@@ -82,12 +81,6 @@ python youtube_playlist_to_mp3.py "URL" --no-playlist-title --android
 
 # Auto-install ffmpeg (OS detection + download/install) - convenient for first run
 python youtube_playlist_to_mp3.py "URL" --android --auto-install-ffmpeg
-
-# Blacklist specific videos (write Video IDs or URLs in blacklist.txt)
-python youtube_playlist_to_mp3.py "URL" --android --blacklist blacklist.txt
-
-# Disable blacklist
-python youtube_playlist_to_mp3.py "URL" --android --no-blacklist
 ```
 
 ### Batch File (Windows - Simple URL Input)
@@ -112,8 +105,6 @@ Run and enter playlist URL when prompted. (Android mode enabled by default)
 | `--android` | | `False` | **Use Android client (bypass 403) - Recommended** |
 | `--cookies` | | `None` | Browser cookies file path (Netscape format) |
 | `--auto-install-ffmpeg` | | `False` | **Auto install ffmpeg (OS detection + download/install)** |
-| `--blacklist` | | `blacklist.txt` | Exclude videos list file |
-| `--no-blacklist` | | `False` | Disable blacklist |
 | `--use-playlist-title` | | `True` | Auto-create folder from playlist title |
 | `--no-playlist-title` | | `False` | Disable auto folder creation |
 
@@ -173,11 +164,6 @@ WARNING: No supported JavaScript runtime could be found...
 - Place `ffmpeg.exe` in project folder
 - Or add ffmpeg to system PATH
 - **Use `--auto-install-ffmpeg` option for auto-install** (Windows/Linux/macOS supported)
-
-### Exclude Specific Videos
-- Create `blacklist.txt` with Video IDs or URLs (one per line)
-- Use `--blacklist blacklist.txt` option (enabled by default if file exists)
-- Use `--no-blacklist` to disable
 
 ---
 
