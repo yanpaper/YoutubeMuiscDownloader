@@ -12,6 +12,7 @@ yt-dlp 라이브러리를 사용합니다.
 
 import argparse
 import os
+import re
 import sys
 import subprocess
 import platform
@@ -35,7 +36,14 @@ def get_ffmpeg_path():
 
 
 def load_blacklist(blacklist_path):
-    """블랙리스트 파일에서 제외할 비디오 ID/URL 로드"""
+    """블랙리스트 파일에서 제외할 비디오 ID/URL 로드
+
+    지원 포맷:
+    - Video ID 직접: dQw4w9WgXcQ
+    - youtube.com/watch?v=... (www./music./m. 모두 지원)
+    - youtu.be/...
+    - shorts/... (Shorts URL)
+    """
     blacklist = set()
     if blacklist_path and Path(blacklist_path).exists():
         try:
@@ -44,18 +52,49 @@ def load_blacklist(blacklist_path):
                 for line in f:
                     line = line.strip()
                     # 주석과 빈 줄 무시
-                    if line and not line.startswith('#'):
-                        # URL에서 video ID 추출 또는 전체 URL/ID 그대로 사용
-                        if 'youtube.com/watch?v=' in line:
-                            video_id = line.split('v=')[1].split('&')[0]
-                            blacklist.add(video_id)
-                        elif 'youtu.be/' in line:
-                            video_id = line.split('youtu.be/')[1].split('?')[0]
-                            blacklist.add(video_id)
+                    if not line or line.startswith('#'):
+                        continue
+
+                    video_id = None
+
+                    # youtu.be 단축 URL (https://youtu.be/ID 또는 youtu.be/ID)
+                    if 'youtu.be/' in line:
+                        m = re.search(r'youtu\.be/([A-Za-z0-9_-]{11})', line)
+                        if m:
+                            video_id = m.group(1)
+
+                    # youtube.com 일반 URL (www./music./m. 모두 매칭)
+                    elif 'youtube.com/' in line:
+                        # v= 파라미터 (www.youtube.com, music.youtube.com)
+                        m = re.search(r'[?&]v=([A-Za-z0-9_-]{11})', line)
+                        if m:
+                            video_id = m.group(1)
                         else:
-                            # 직접 ID로 입력된 경우
-                            blacklist.add(line)
+                            # /shorts/VIDEO_ID
+                            m = re.search(r'/shorts/([A-Za-z0-9_-]{11})', line)
+                            if m:
+                                video_id = m.group(1)
+                            else:
+                                # /embed/VIDEO_ID
+                                m = re.search(r'/embed/([A-Za-z0-9_-]{11})', line)
+                                if m:
+                                    video_id = m.group(1)
+
+                    # 그 외: 그대로 ID로 간주 (11자 영숫자만 통과)
+                    else:
+                        m = re.fullmatch(r'[A-Za-z0-9_-]{11}', line)
+                        if m:
+                            video_id = line
+
+                    if video_id:
+                        blacklist.add(video_id)
+                    else:
+                        print(f"⚠️  블랙리스트에서 ID 추출 실패: {line!r}")
+
             print(f"블랙리스트 로드: {len(blacklist)}개 항목 ({blacklist_path})")
+            if blacklist:
+                ids_preview = list(blacklist)[:5]
+                print(f"   추출된 ID 예시: {ids_preview}")
         except Exception as e:
             print(f"블랙리스트 로드 실패: {e}")
     return blacklist
