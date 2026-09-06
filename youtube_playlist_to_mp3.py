@@ -23,15 +23,43 @@ import shutil
 from pathlib import Path
 
 
-# 스크립트 디렉토리 (로컬 ffmpeg.exe 위치)
+# 스크립트 디렉토리
 SCRIPT_DIR = Path(__file__).parent.absolute()
-LOCAL_FFMPEG = SCRIPT_DIR / "ffmpeg.exe"
+
+# 로컬 ffmpeg 후보 (OS별)
+#   Windows: ffmpeg.exe (사이드바이사이드)
+#   Linux/macOS: ffmpeg (확장자 없음)
+IS_WINDOWS = platform.system().lower() == "windows"
+LOCAL_FFMPEG = SCRIPT_DIR / ("ffmpeg.exe" if IS_WINDOWS else "ffmpeg")
 
 
 def get_ffmpeg_path():
-    """사용 가능한 ffmpeg 경로 반환 (로컬 우선, 없으면 PATH에서 찾기)"""
-    if LOCAL_FFMPEG.exists():
-        return str(LOCAL_FFMPEG)
+    """사용 가능한 ffmpeg 경로 반환
+
+    우선순위:
+    1. OS에 맞는 로컬 ffmpeg (Windows면 ffmpeg.exe, Linux/Mac이면 ffmpeg)
+    2. 시스템 PATH의 ffmpeg
+    """
+    # 1) 로컬 파일 (현재 OS에 맞는 바이너리만)
+    if LOCAL_FFMPEG.exists() and LOCAL_FFMPEG.is_file():
+        # OS와 확장자가 일치하는지 확인
+        #   Windows: .exe
+        #   Linux/macOS: 확장자 없음
+        if IS_WINDOWS:
+            if LOCAL_FFMPEG.suffix.lower() == ".exe":
+                return str(LOCAL_FFMPEG)
+        else:
+            if LOCAL_FFMPEG.suffix == "":
+                # 실행 권한도 확인
+                if os.access(LOCAL_FFMPEG, os.X_OK):
+                    return str(LOCAL_FFMPEG)
+
+    # 2) 시스템 PATH의 ffmpeg 사용
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg
+
+    # 3) 최후 수단: PATH 탐색 가정
     return "ffmpeg"
 
 
@@ -101,12 +129,23 @@ def load_blacklist(blacklist_path):
 
 
 def check_ffmpeg():
-    """ffmpeg가 설치되어 있는지 확인 (로컬 포함)"""
+    """ffmpeg가 설치되어 있는지 확인 (로컬 + 시스템 PATH)"""
     ffmpeg_path = get_ffmpeg_path()
     try:
-        subprocess.run([ffmpeg_path, '-version'], capture_output=True, check=True)
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        result = subprocess.run(
+            [ffmpeg_path, '-version'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            # 첫 줄만 표시 (너무 길지 않게)
+            first_line = result.stdout.splitlines()[0] if result.stdout else ""
+            print(f"   ffmpeg 발견: {ffmpeg_path} ({first_line})")
+            return True
+        return False
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError, subprocess.TimeoutExpired) as e:
+        print(f"   ffmpeg 경로 '{ffmpeg_path}' 사용 실패: {type(e).__name__}: {e}")
         return False
 
 
