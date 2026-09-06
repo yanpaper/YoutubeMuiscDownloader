@@ -387,15 +387,29 @@ def download_playlist_to_mp3(playlist_url, output_dir, audio_quality=0, use_andr
     print("-" * 50)
     
     try:
-        result = subprocess.run(cmd, check=True, env=env)
+        # yt-dlp with --ignore-errors returns exit code 1 on warnings
+        # even if download completed. Capture output and check manually.
+        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
         print("-" * 50)
-        print("다운로드 완료!")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"\n다운로드 중 오류 발생: {e}")
-        return False
+        
+        # Check if download actually completed (files exist or playlist finished message)
+        output_text = result.stdout + result.stderr
+        playlist_finished = "Finished downloading playlist" in output_text or "다운로드 완료" in output_text
+        files_exist = any(output_path.glob("*.mp3")) if output_path.exists() else False
+        
+        if result.returncode == 0 or playlist_finished or files_exist:
+            print("다운로드 완료!")
+            return True
+        else:
+            print(f"\n다운로드 중 오류 발생 (exit code: {result.returncode})")
+            if result.stderr:
+                print(result.stderr[-2000:])  # 마지막 2000자만 출력
+            return False
     except KeyboardInterrupt:
         print("\n\n사용자에 의해 중단되었습니다.")
+        return False
+    except Exception as e:
+        print(f"\n예기치 않은 오류: {e}")
         return False
 
 
