@@ -403,20 +403,56 @@ def get_playlist_info(playlist_url):
 
 
 def get_playlist_title(playlist_url):
-    """플레이리스트 제목만 가져오기 (파일시스템 안전한 형태로 sanitize)"""
+    """플레이리스트 제목만 가져오기 (파일시스템 안전한 형태로 sanitize)
+
+    yt-dlp Python API를 직접 사용해 더 안정적으로 추출.
+    """
+    try:
+        import yt_dlp
+
+        ydl_opts = {
+            'quiet': True,
+            'extract_flat': True,  # flat playlist
+            'skip_download': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(playlist_url, download=False)
+            title = info.get('title') or info.get('playlist_title') or 'Unknown_Playlist'
+            return sanitize_folder_name(title)
+    except Exception as e:
+        # Fallback: subprocess 방식 (구버전 yt-dlp 호환)
+        print(f"   Python API 실패, subprocess 재시도: {e}")
+        return _get_playlist_title_subprocess(playlist_url)
+
+
+def _get_playlist_title_subprocess(playlist_url):
+    """Subprocess 방식으로 플레이리스트 제목 추출 (fallback)"""
     yt_dlp_cmd = get_yt_dlp_cmd()
+    # --flat-playlist 없이 playlist_title만 출력 시도
     cmd = yt_dlp_cmd + [
-        '--flat-playlist',
-        '--print', '%(playlist_title)s',
+        '--print', 'playlist_title',
         playlist_url
     ]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        title = result.stdout.strip().split('\n')[0]  # 첫 줄만 사용
+        title = result.stdout.strip().split('\n')[0]
+        return sanitize_folder_name(title)
+    except subprocess.CalledProcessError:
+        pass
+
+    # 마지막 수단: flat-playlist로 첫 비디오의 playlist 정보에서 추출
+    cmd = yt_dlp_cmd + [
+        '--flat-playlist',
+        '--print', '%(playlist_title)s',
+        playlist_url
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        title = result.stdout.strip().split('\n')[0]
         return sanitize_folder_name(title)
     except subprocess.CalledProcessError as e:
-        print(f"플레이리스트 제목 가져오기 실패: {e}")
+        print(f"   제목 추출 완전 실패: {e}")
         return "Unknown_Playlist"
 
 
