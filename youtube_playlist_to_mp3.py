@@ -346,11 +346,20 @@ def download_playlist_to_mp3(playlist_url, output_dir, audio_quality=0, use_andr
         '-o', str(output_path / '%(title)s.%(ext)s'),
     ]
     
-    # 403 Forbidden 우회: 여러 player client 순차 시도
-    # YouTube가 특정 client를 차단할 수 있어 fallback 필요
+    # 403/연령제한/지역제한 우회: 강화된 옵션들
+    # 네트워크/인증 관련
+    cmd += [
+        '--no-check-certificates',
+        '--geo-bypass',
+        '--extractor-retries', '5',
+        '--socket-timeout', '30',
+    ]
+
+    # Player client fallback 순서 (web을 우선으로)
+    # YouTube가 특정 client를 차단할 수 있어 여러 client 순차 시도
     if use_android_client:
-        # 최신 yt-dlp 권장 순서: android, web, tv_embedded, mweb
-        clients = ['android', 'web', 'tv_embedded', 'mweb']
+        # web이 요즘 더 잘 뚫림 -> android -> tv_embedded -> mweb
+        clients = ['web', 'android', 'tv_embedded', 'mweb']
         client_args = ','.join(clients)
         cmd += ['--extractor-args', f'youtube:player_client={client_args}']
         print(f"Player client fallback 순서: {client_args}")
