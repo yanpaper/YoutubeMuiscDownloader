@@ -364,25 +364,52 @@ def get_playlist_info(playlist_url):
 
 
 def get_playlist_title(playlist_url):
-    """플레이리스트 제목만 가져오기"""
+    """플레이리스트 제목만 가져오기 (파일시스템 안전한 형태로 sanitize)"""
     yt_dlp_cmd = get_yt_dlp_cmd()
     cmd = yt_dlp_cmd + [
         '--flat-playlist',
         '--print', '%(playlist_title)s',
         playlist_url
     ]
-    
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         title = result.stdout.strip().split('\n')[0]  # 첫 줄만 사용
-        # 윈도우에서 사용할 수 없는 문자 제거
-        invalid_chars = '<>:"/\\|?*'
-        for char in invalid_chars:
-            title = title.replace(char, '_')
-        return title if title else "Unknown_Playlist"
+        return sanitize_folder_name(title)
     except subprocess.CalledProcessError as e:
         print(f"플레이리스트 제목 가져오기 실패: {e}")
         return "Unknown_Playlist"
+
+
+def sanitize_folder_name(name):
+    """파일시스템에 안전한 폴더명으로 변환 (Windows/Linux/macOS 공통)"""
+    if not name:
+        return "Unknown_Playlist"
+
+    # Windows 금지 문자 + control chars (< > : " / \ | ? *)
+    invalid_chars = '<>:"/\\|?*'
+    for c in invalid_chars:
+        name = name.replace(c, '_')
+    # control characters 제거
+    name = ''.join(ch for ch in name if ord(ch) >= 0x20)
+
+    # Windows 예약 이름 회피 (CON, PRN, AUX, NUL, COM1~9, LPT1~9)
+    reserved = {'CON', 'PRN', 'AUX', 'NUL'}
+    for i in range(1, 10):
+        reserved.add(f'COM{i}')
+        reserved.add(f'LPT{i}')
+    base = name.split('.')[0].upper().strip(' .')
+    if base in reserved:
+        name = '_' + name
+
+    # 앞뒤 공백 및 점 제거 (Windows 탐색기 호환)
+    name = name.strip(' .')
+
+    # 길이 제한 (Linux ext4 max 255 bytes, 여유 두고 200)
+    while len(name.encode('utf-8')) > 200:
+        name = name[:-1]
+
+    return name if name else "Unknown_Playlist"
 
 
 def main():
@@ -419,9 +446,9 @@ def main():
     parser.add_argument('--no-blacklist', action='store_true',
                         help='블랙리스트 사용 안 함')
     parser.add_argument('--use-playlist-title', action='store_true', default=True,
-                        help='출력 폴더명을 플레이리스트 제목으로 사용 (기본값: 켜짐)')
+                        help='출력 폴더명을 플레이리스트 제목으로 사용 (기본값: 켜짐, -o 경로 아래에 생성)')
     parser.add_argument('--no-playlist-title', action='store_false', dest='use_playlist_title',
-                        help='출력 폴더명을 플레이리스트 제목으로 사용 안 함')
+                        help='출력 폴더명을 플레이리스트 제목으로 사용 안 함 (-o 경로에 직접 저장)')
     
     args = parser.parse_args()
     
@@ -436,12 +463,17 @@ def main():
             print("플레이리스트 정보를 가져올 수 없습니다.")
         return
     
-    # 출력 디렉토리 결정: 사용자가 지정하지 않았고 --use-playlist-title이 켜져 있으면 플레이리스트 제목 사용
+    # 출력 디렉토리 결정
+    #   - --no-playlist-title: -o 그대로 사용 (없으면 ./downloads)
+    #   - 기본(켜짐):  ./downloads/<playlist_title>  (없으면 ./<playlist_title>)
     output_dir = args.output_dir
-    if output_dir == './downloads' and args.use_playlist_title:
+    if args.use_playlist_title:
         print("플레이리스트 제목 가져오는 중...")
         playlist_title = get_playlist_title(args.url)
-        output_dir = f"./{playlist_title}"
+        parent = output_dir if output_dir else "./downloads"
+        output_dir = f"{parent.rstrip('/')}/{playlist_title}"
+        print(f"출력 폴더: {output_dir}")
+    else:
         print(f"출력 폴더: {output_dir}")
     
     # ffmpeg 확인 및 자동 설치 (다운로드 시에만 필요)
