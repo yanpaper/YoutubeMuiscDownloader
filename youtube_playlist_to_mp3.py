@@ -346,9 +346,14 @@ def download_playlist_to_mp3(playlist_url, output_dir, audio_quality=0, use_andr
         '-o', str(output_path / '%(title)s.%(ext)s'),
     ]
     
-    # 403 Forbidden 우회 옵션
+    # 403 Forbidden 우회: 여러 player client 순차 시도
+    # YouTube가 특정 client를 차단할 수 있어 fallback 필요
     if use_android_client:
-        cmd += ['--extractor-args', 'youtube:player_client=android']
+        # 최신 yt-dlp 권장 순서: android, web, tv_embedded, mweb
+        clients = ['android', 'web', 'tv_embedded', 'mweb']
+        client_args = ','.join(clients)
+        cmd += ['--extractor-args', f'youtube:player_client={client_args}']
+        print(f"Player client fallback 순서: {client_args}")
     
     if cookies:
         cmd += ['--cookies', cookies]
